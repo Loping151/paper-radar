@@ -1,0 +1,126 @@
+"""Base LLM client for OpenAI-compatible APIs."""
+
+import httpx
+from openai import OpenAI
+from typing import Optional
+from loguru import logger
+
+
+class BaseLLMClient:
+    """OpenAI-compatible LLM client base class."""
+
+    def __init__(
+        self,
+        api_base: str,
+        api_key: str,
+        model: str,
+        temperature: float = 0.3,
+        max_tokens: int = 2000,
+        **kwargs,
+    ):
+        """
+        Initialize the LLM client.
+
+        Args:
+            api_base: API base URL (OpenAI-compatible endpoint)
+            api_key: API key
+            model: Model name
+            temperature: Sampling temperature
+            max_tokens: Maximum tokens in response
+            **kwargs: Additional parameters
+        """
+        self.client = OpenAI(
+            base_url=api_base,
+            api_key=api_key,
+            http_client=httpx.Client(timeout=180),
+        )
+        self.model = model
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self.extra_params = kwargs
+
+        logger.debug(f"Initialized LLM client: {api_base} / {model}")
+
+    def chat(
+        self,
+        messages: list[dict],
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        **kwargs,
+    ) -> str:
+        """
+        Send a chat completion request.
+
+        Args:
+            messages: List of message dicts with "role" and "content"
+            temperature: Override default temperature
+            max_tokens: Override default max_tokens
+            **kwargs: Additional parameters
+
+        Returns:
+            The assistant's response text
+        """
+        params = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature if temperature is not None else self.temperature,
+            "max_tokens": max_tokens if max_tokens is not None else self.max_tokens,
+            **kwargs,
+        }
+
+        try:
+            response = self.client.chat.completions.create(**params)
+            return response.choices[0].message.content
+        except Exception as e:
+            logger.error(f"LLM chat error: {e}")
+            raise
+
+    def chat_with_pdf(
+        self,
+        prompt: str,
+        pdf_base64: str,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+    ) -> str:
+        """
+        Send a chat completion request with a PDF file.
+
+        Args:
+            prompt: Text prompt
+            pdf_base64: Base64 encoded PDF content
+            temperature: Override default temperature
+            max_tokens: Override default max_tokens
+
+        Returns:
+            The assistant's response text
+        """
+        # Construct message with PDF as file attachment
+        # Using the OpenAI vision API format which Gemini also supports
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:application/pdf;base64,{pdf_base64}",
+                        },
+                    },
+                ],
+            }
+        ]
+
+        params = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature if temperature is not None else self.temperature,
+            "max_tokens": max_tokens if max_tokens is not None else self.max_tokens,
+        }
+
+        try:
+            response = self.client.chat.completions.create(**params)
+            return response.choices[0].message.content
+        except Exception as e:
+            logger.error(f"LLM chat with PDF error: {e}")
+            raise

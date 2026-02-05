@@ -1,0 +1,64 @@
+# NAS 部署专用配置 - PaperRadar
+# 从 Docker Hub 拉取镜像，无需本地构建
+#
+# 使用方式:
+#   1. 复制此文件和 .env.example 到 NAS
+#   2. 创建 .env 文件并填写配置
+#   3. 创建 config.yaml 配置文件
+#   4. 运行: docker-compose -f docker-compose.nas.yml up -d
+
+services:
+  paper-radar:
+    image: rockhhhh/paper-radar:latest
+    container_name: paper-radar
+    restart: unless-stopped
+
+    environment:
+      # Timezone
+      - TZ=Asia/Shanghai
+
+      # Run once on container start (useful for testing)
+      - RUN_ON_START=false
+      - WEB_PORT=8000
+
+      # ===== Light LLM Configuration (for filtering) =====
+      - LIGHT_LLM_API_BASE=${LIGHT_LLM_API_BASE}
+      - LIGHT_LLM_API_KEY=${LIGHT_LLM_API_KEY}
+      - LIGHT_LLM_MODEL=${LIGHT_LLM_MODEL}
+
+      # ===== Heavy LLM Configuration (for PDF analysis) =====
+      - HEAVY_LLM_API_BASE=${HEAVY_LLM_API_BASE}
+      - HEAVY_LLM_API_KEY=${HEAVY_LLM_API_KEY}
+      - HEAVY_LLM_MODEL=${HEAVY_LLM_MODEL}
+
+      # ===== Email Configuration =====
+      - SMTP_SERVER=${SMTP_SERVER}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_SENDER=${SMTP_SENDER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_RECEIVER=${SMTP_RECEIVER}
+
+      # ===== EZproxy Configuration (for journal PDFs) =====
+      - HKU_LIBRARY_UID=${HKU_LIBRARY_UID}
+      - HKU_LIBRARY_PIN=${HKU_LIBRARY_PIN}
+
+    volumes:
+      # Configuration file
+      - ./config.yaml:/app/config.yaml:ro
+
+      # Persistent storage
+      - ./reports:/app/reports
+      - ./logs:/app/logs
+      - ./cache:/app/cache
+
+      # Timezone sync
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "8000:8000"
+
+    # Healthcheck
+    healthcheck:
+      test: ["CMD", "python", "-c", "import main"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

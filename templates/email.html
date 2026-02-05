@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PaperRadar 论文速递 - {{ date }}</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #1a1a1a;
+            border-bottom: 3px solid #e74c3c;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .stats {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+        }
+        .stat-item {
+            text-align: center;
+            padding: 10px;
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #e74c3c;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+        }
+        .keyword-section {
+            margin-bottom: 30px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .keyword-header {
+            background-color: #4a5568;
+            color: #ffffff;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .keyword-header .count {
+            float: right;
+            background-color: #718096;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 14px;
+            color: #ffffff;
+        }
+        .summary-box {
+            background-color: #fafafa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+        .summary-box h4 {
+            margin: 0 0 10px 0;
+            color: #666;
+        }
+        .summary-box h2, .summary-box h3, .summary-box h4 {
+            color: #2c3e50;
+            margin: 15px 0 10px 0;
+        }
+        .summary-box strong {
+            color: #c0392b;
+        }
+        .summary-box ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .summary-box li {
+            margin: 5px 0;
+        }
+        .paper-item {
+            padding: 20px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .paper-item:last-child {
+            border-bottom: none;
+        }
+        .paper-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+        .paper-title a {
+            color: #2c3e50;
+            text-decoration: none;
+        }
+        .paper-title a:hover {
+            color: #e74c3c;
+        }
+        .paper-meta {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .paper-tldr {
+            background-color: #fff3cd;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-bottom: 10px;
+            border-left: 4px solid #ffc107;
+        }
+        .paper-contributions {
+            font-size: 13px;
+            color: #555;
+        }
+        .paper-contributions ul {
+            margin: 5px 0;
+            padding-left: 20px;
+        }
+        .paper-links {
+            margin-top: 10px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 4px;
+            text-decoration: none;
+            margin-right: 8px;
+        }
+        .btn-pdf {
+            background-color: #e74c3c;
+            color: white;
+        }
+        .btn-abstract {
+            background-color: #3498db;
+            color: white;
+        }
+        .btn-code {
+            background-color: #2ecc71;
+            color: white;
+        }
+        .paper-number {
+            color: #e74c3c;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+        .paper-dataset {
+            font-size: 13px;
+            color: #666;
+            margin-top: 8px;
+            padding: 8px;
+            background-color: #f0f8ff;
+            border-radius: 4px;
+            border-left: 3px solid #3498db;
+        }
+        .paper-source-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+        .source-arxiv {
+            background-color: #b31b1b;
+            color: white;
+        }
+        .source-journal {
+            background-color: #0066cc;
+            color: white;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            font-size: 12px;
+            color: #999;
+        }
+        .no-papers {
+            padding: 20px;
+            text-align: center;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📚 PaperRadar 论文速递</h1>
+
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-number">{{ date }}</div>
+                <div class="stat-label">日期</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">{{ total_papers }}</div>
+                <div class="stat-label">今日新论文</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">{{ matched_papers }}</div>
+                <div class="stat-label">关键词匹配</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">{{ analyzed_papers }}</div>
+                <div class="stat-label">深度分析</div>
+            </div>
+        </div>
+
+        {% for keyword in keywords %}
+        {% set analyses = analyses_by_keyword.get(keyword, []) %}
+        {% set summary = summaries.get(keyword, '') %}
+        <div class="keyword-section">
+            <div class="keyword-header" style="background-color: #4a5568; color: #ffffff;">
+                🔖 {{ keyword }}
+                <span class="count" style="background-color: #718096; color: #ffffff;">{{ analyses|length }} 篇</span>
+            </div>
+
+            {% if summary %}
+            <div class="summary-box">
+                <h4 style="margin: 0 0 10px 0; color: #666;">📈 领域进展总结</h4>
+                <div class="summary-content">{{ summary | safe }}</div>
+            </div>
+            {% endif %}
+
+            {% if analyses %}
+                {% for analysis in analyses %}
+                {% if analysis.success %}
+                <div class="paper-item">
+                    <div class="paper-title">
+                        <span class="paper-number" style="color: #e74c3c; font-weight: bold; margin-right: 8px;">{{ loop.index }}.</span>
+                        {% if analysis.paper and analysis.paper.source == 'journal' %}
+                        <a href="{{ analysis.pdf_url }}" target="_blank">
+                            {{ analysis.title }}
+                        </a>
+                        {% else %}
+                        <a href="https://arxiv.org/abs/{{ analysis.arxiv_id }}" target="_blank">
+                            {{ analysis.title }}
+                        </a>
+                        {% endif %}
+                    </div>
+                    <div class="paper-meta">
+                        <strong>作者:</strong> {{ analysis.authors[:5] | join(', ') }}{% if analysis.authors|length > 5 %} et al.{% endif %}<br>
+                        {% if analysis.affiliations %}
+                        <strong>机构:</strong> {{ analysis.affiliations[:3] | join(', ') }}<br>
+                        {% endif %}
+                        {% if analysis.paper and analysis.paper.source == 'journal' %}
+                        <span class="paper-source-badge source-journal" style="display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: bold; background-color: #0066cc; color: white;">{{ analysis.paper.primary_category }}</span>
+                        <span style="color: #666;">{{ analysis.arxiv_id }}</span>
+                        {% else %}
+                        <span class="paper-source-badge source-arxiv" style="display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: bold; background-color: #b31b1b; color: white;">arXiv</span>
+                        <span style="color: #666;">{{ analysis.arxiv_id }}</span>
+                        {% endif %}
+                    </div>
+                    {% if analysis.tldr %}
+                    <div class="paper-tldr">
+                        <strong>💡 TLDR:</strong> {{ analysis.tldr }}
+                    </div>
+                    {% endif %}
+                    {% if analysis.contributions %}
+                    <div class="paper-contributions">
+                        <strong>主要贡献:</strong>
+                        <ul>
+                        {% for contrib in analysis.contributions[:3] %}
+                            <li>{{ contrib }}</li>
+                        {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                    {% if analysis.dataset_info and analysis.dataset_info != '未明确说明' %}
+                    <div class="paper-dataset" style="font-size: 13px; color: #666; margin-top: 8px; padding: 8px; background-color: #f0f8ff; border-radius: 4px; border-left: 3px solid #3498db;">
+                        <strong>📊 数据集:</strong> {{ analysis.dataset_info }}
+                    </div>
+                    {% endif %}
+                    <div class="paper-links">
+                        <a href="{{ analysis.pdf_url }}" class="btn btn-pdf" style="background-color: #e74c3c; color: #ffffff; display: inline-block; padding: 6px 12px; font-size: 12px; border-radius: 4px; text-decoration: none; margin-right: 8px;" target="_blank">📄 PDF</a>
+                        {% if analysis.paper and analysis.paper.source == 'journal' %}
+                        <a href="{{ analysis.pdf_url }}" class="btn btn-abstract" style="background-color: #3498db; color: #ffffff; display: inline-block; padding: 6px 12px; font-size: 12px; border-radius: 4px; text-decoration: none; margin-right: 8px;" target="_blank">📋 Article</a>
+                        {% else %}
+                        <a href="https://arxiv.org/abs/{{ analysis.arxiv_id }}" class="btn btn-abstract" style="background-color: #3498db; color: #ffffff; display: inline-block; padding: 6px 12px; font-size: 12px; border-radius: 4px; text-decoration: none; margin-right: 8px;" target="_blank">📋 Abstract</a>
+                        {% endif %}
+                        {% if analysis.code_url %}
+                        <a href="{{ analysis.code_url }}" class="btn btn-code" style="background-color: #2ecc71; color: #ffffff; display: inline-block; padding: 6px 12px; font-size: 12px; border-radius: 4px; text-decoration: none;" target="_blank">💻 Code</a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+                {% endfor %}
+            {% else %}
+            <div class="no-papers">今日该领域暂无相关论文</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        <div class="footer">
+            <p>本报告由 PaperRadar 自动生成</p>
+            <p>Powered by LLM Agent Pipeline</p>
+        </div>
+    </div>
+</body>
+</html>

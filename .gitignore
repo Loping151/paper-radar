@@ -1,0 +1,56 @@
+# Ignore
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local config and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Generated files
+logs/
+reports/
+cache/
+*.log
+
+# Cookies and session files
+*.pkl
+ezproxy_cookies.pkl
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test files (development only)
+test_*.py
