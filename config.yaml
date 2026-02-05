@@ -151,22 +151,12 @@ llm:
 output:
   language: "Chinese"
   formats:
-    email:
-      enabled: true
     markdown:
       enabled: true
       path: "./reports/"
     json:
       enabled: true
       path: "./reports/json/"
-
-# 邮件配置
-smtp:
-  server: "${SMTP_SERVER}"
-  port: "${SMTP_PORT}"
-  sender: "${SMTP_SENDER}"
-  password: "${SMTP_PASSWORD}"
-  receiver: "${SMTP_RECEIVER}"
 
 # 运行配置
 runtime:

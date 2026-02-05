@@ -61,7 +61,7 @@ def main():
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Dry run (don't send email)",
+        help="Dry run (skip external delivery)",
     )
     parser.add_argument(
         "--test",
@@ -161,8 +161,12 @@ def main():
             keywords=keyword_names,
         )
         reporter = Reporter(config)
-        if not args.dry_run:
-            reporter.generate_and_send(report)
+        if args.dry_run:
+            reporter.save_markdown(report)
+            reporter.save_json(report)
+        else:
+            results = reporter.generate_and_send(report)
+            logger.info(f"Report delivery results: {results}")
         return
 
     # ========== Stage 2: Analyze with Heavy LLM ==========
@@ -281,8 +285,7 @@ def main():
     reporter = Reporter(config)
 
     if args.dry_run:
-        logger.info("Dry run mode - skipping email send")
-        # Still save markdown
+        logger.info("Dry run mode - saving reports only")
         reporter.save_markdown(report)
         reporter.save_json(report)
     else:

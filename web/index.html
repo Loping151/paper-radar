@@ -73,6 +73,26 @@
           </label>
           <input id="search-input" type="text" placeholder="标题 / 摘要 / 作者..." />
         </div>
+        <div class="control">
+          <label for="sort-select">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 4px;">
+              <path d="M11 11H21"></path>
+              <path d="M11 6H21"></path>
+              <path d="M11 16H21"></path>
+              <path d="M3 6l3 3 3-3"></path>
+              <path d="M6 9V3"></path>
+              <path d="M3 18l3-3 3 3"></path>
+              <path d="M6 15v6"></path>
+            </svg>
+            排序
+          </label>
+          <select id="sort-select"></select>
+        </div>
+
+        <div class="control-bar" aria-label="筛选状态">
+          <div class="result-count" id="result-count">-</div>
+          <button id="clear-filters" class="clear-btn" type="button">清空筛选</button>
+        </div>
       </section>
 
       <section id="trends" class="trends" aria-label="趋势统计"></section>

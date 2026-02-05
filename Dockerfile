@@ -29,7 +29,6 @@ COPY pyproject.toml README.md ./
 COPY *.py ./
 COPY agents/ ./agents/
 COPY models/ ./models/
-COPY templates/ ./templates/
 COPY web/ ./web/
 
 # Install Python dependencies

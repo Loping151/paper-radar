@@ -43,13 +43,6 @@ HEAVY_LLM_API_BASE=https://generativelanguage.googleapis.com/v1beta/openai
 HEAVY_LLM_API_KEY=your-gemini-api-key
 HEAVY_LLM_MODEL=gemini-2.0-flash
 
-# 邮件配置
-SMTP_SERVER=smtp.qq.com
-SMTP_PORT=465
-SMTP_SENDER=your-email@qq.com
-SMTP_PASSWORD=your-smtp-auth-code
-SMTP_RECEIVER=receiver@example.com
-
 # EZproxy 配置（访问 Nature 等付费期刊）
 HKU_LIBRARY_UID=your-library-uid
 HKU_LIBRARY_PIN=your-library-pin
@@ -128,13 +121,6 @@ LIGHT_LLM_MODEL=deepseek-chat
 HEAVY_LLM_API_BASE=https://generativelanguage.googleapis.com/v1beta/openai
 HEAVY_LLM_API_KEY=your-gemini-api-key
 HEAVY_LLM_MODEL=gemini-2.0-flash
-
-# 邮件配置
-SMTP_SERVER=smtp.qq.com
-SMTP_PORT=465
-SMTP_SENDER=your-email@qq.com
-SMTP_PASSWORD=your-smtp-auth-code
-SMTP_RECEIVER=receiver@example.com
 
 # EZproxy 配置（访问 Nature 等付费期刊）
 HKU_LIBRARY_UID=your-library-uid

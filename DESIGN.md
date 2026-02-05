@@ -188,21 +188,12 @@ llm:
 output:
   language: "Chinese"
   formats:
-    - type: "email"
-      enabled: true
-    - type: "markdown"
+    markdown:
       enabled: true
       path: "./reports/"
-
-# ===========================================
-# 邮件配置
-# ===========================================
-smtp:
-  server: "smtp.qq.com"
-  port: 465
-  sender: "xxx@qq.com"
-  password: "${SMTP_PASSWORD}"
-  receiver: "xxx@example.com"
+    json:
+      enabled: true
+      path: "./reports/json/"
 
 # ===========================================
 # 运行配置
@@ -289,11 +280,6 @@ runtime:
 | HEAVY_LLM_API_BASE | 重量级 LLM API 地址 | 是 |
 | HEAVY_LLM_API_KEY | 重量级 LLM API 密钥 | 是 |
 | HEAVY_LLM_MODEL | 重量级 LLM 模型名称 | 是 |
-| SMTP_SERVER | SMTP 服务器 | 是 |
-| SMTP_PORT | SMTP 端口 | 是 |
-| SMTP_SENDER | 发件人邮箱 | 是 |
-| SMTP_PASSWORD | 发件人密码/授权码 | 是 |
-| SMTP_RECEIVER | 收件人邮箱 | 是 |
 | HKU_LIBRARY_UID | HKU 图书馆用户 ID | 否* |
 | HKU_LIBRARY_PIN | HKU 图书馆 PIN | 否* |
 | TZ | 时区 | 否 |

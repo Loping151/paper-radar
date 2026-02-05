@@ -3,7 +3,7 @@
 [![Docker](https://img.shields.io/badge/Docker-ready-blue)](https://hub.docker.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Automated academic paper monitoring and analysis system powered by dual LLM architecture. Fetches papers from arXiv and academic journals, filters by keywords, and generates daily email reports with AI-powered summaries.
+Automated academic paper monitoring and analysis system powered by dual LLM architecture. Fetches papers from arXiv and academic journals, filters by keywords, and generates daily Markdown/JSON reports with AI-powered summaries (served via a lightweight web UI).
 
 ## Features
 
@@ -13,7 +13,7 @@ Automated academic paper monitoring and analysis system powered by dual LLM arch
   - Heavy multimodal LLM for deep PDF analysis
 - **EZproxy Authentication**: Access paywalled journal PDFs through institutional library
 - **Smart Analysis**: Extracts contributions, methodology, datasets, and code links from papers
-- **Daily Reports**: Beautiful HTML email reports with field summaries
+- **Daily Reports**: Markdown + JSON reports with field summaries
 - **Docker Ready**: Easy deployment on NAS or cloud servers
 
 ## Architecture
@@ -25,8 +25,8 @@ Automated academic paper monitoring and analysis system powered by dual LLM arch
 └─────────────────┘     └─────────────────┘     └─────────────────┘
                                                         │
                         ┌─────────────────┐             │
-                        │  Email Report   │◀────────────┘
-                        │  Markdown       │
+                        │  Markdown/JSON  │◀────────────┘
+                        │  Web UI         │
                         └─────────────────┘
 ```
 
@@ -74,7 +74,6 @@ http://<your-server-ip>:8000
 | `HEAVY_LLM_API_BASE` | Heavy LLM API endpoint |
 | `HEAVY_LLM_API_KEY` | Heavy LLM API key |
 | `HEAVY_LLM_MODEL` | Heavy LLM model name (e.g., gemini-2.0-flash) |
-| `SMTP_*` | Email configuration |
 | `HKU_LIBRARY_UID` | (Optional) Library credentials for EZproxy |
 | `HKU_LIBRARY_PIN` | (Optional) Library credentials for EZproxy |
 
@@ -105,7 +104,6 @@ paper-radar/
 │   ├── analyzer_agent.py   # PDF analysis
 │   └── summary_agent.py    # Field summaries
 ├── models/                 # Data models
-├── templates/              # Email templates
 ├── scripts/                # Docker scripts
 ├── config.yaml             # Main configuration
 ├── main.py                 # Entry point
