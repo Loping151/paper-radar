@@ -1,119 +1,90 @@
 # PaperRadar
 
-[![Docker](https://img.shields.io/badge/Docker-ready-blue)](https://hub.docker.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+PaperRadar 是一个基于关键词的「论文雷达」：每天自动抓取 arXiv +（可选）学术期刊最新论文，通过“双 LLM”完成筛选与 PDF 深度分析，生成日报（Markdown + JSON），并通过内置 Web UI 快速浏览与检索。
 
-Automated academic paper monitoring and analysis system powered by dual LLM architecture. Fetches papers from arXiv and academic journals, filters by keywords, and generates daily Markdown/JSON reports with AI-powered summaries (served via a lightweight web UI).
+## 功能亮点
 
-## Features
+- 多源抓取：arXiv RSS + 期刊 RSS（Nature/NEJM/Cell/Science 等，可在 `config.yaml` 关闭）
+- 双 LLM 架构：
+  - Light LLM：基于 title/abstract 快速判断匹配哪些关键词（输出 `matched_keywords`）
+  - Heavy 多模态 LLM：读取 PDF，输出 TLDR/贡献/方法/实验/创新/局限/数据/代码 + 质量评分
+- 领域总结：每个领域一段 Markdown 总结，引用“论文1/2/3…”（Web UI 中可点击跳转到对应论文卡片）
+- 报告输出：每日生成 `reports/`（Markdown）与 `reports/json/`（JSON）
+- Web UI：日期/领域筛选、搜索、排序、可跳转引用数字、分页加载
+- Docker 部署：容器内 cron 定时运行 + FastAPI Web 服务（默认端口 `8000`）
 
-- **Multi-source Paper Fetching**: Supports arXiv preprints and academic journals (Nature, NEJM, Lancet, etc.)
-- **Dual LLM Architecture**:
-  - Light LLM for fast keyword matching and filtering
-  - Heavy multimodal LLM for deep PDF analysis
-- **EZproxy Authentication**: Access paywalled journal PDFs through institutional library
-- **Smart Analysis**: Extracts contributions, methodology, datasets, and code links from papers
-- **Daily Reports**: Markdown + JSON reports with field summaries
-- **Docker Ready**: Easy deployment on NAS or cloud servers
+## 工作流（Stage 0-4）
 
-## Architecture
+1. Stage 0：抓取论文元数据（title/abstract/pdf_url…）
+2. Stage 1：Light LLM 关键词匹配（输出 `matched_keywords`）
+3. Stage 2：Heavy LLM 读取 PDF 深度分析（结构化字段 + `quality_score`）
+4. Stage 3：SummaryAgent 生成领域总结（Markdown，引用“论文N”）
+5. Stage 4：Reporter 保存 Markdown/JSON；Web UI 读取 JSON 展示
 
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│  arXiv RSS      │     │  Light LLM      │     │  Heavy LLM      │
-│  Journal RSS    │────▶│  (Filtering)    │────▶│  (PDF Analysis) │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-                                                        │
-                        ┌─────────────────┐             │
-                        │  Markdown/JSON  │◀────────────┘
-                        │  Web UI         │
-                        └─────────────────┘
-```
+## 快速开始（Docker，本地构建）
 
-## Quick Start
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/yourusername/paper-radar.git
-cd paper-radar
-```
-
-### 2. Configure environment
+### 1) 配置环境变量
 
 ```bash
 cp .env.example .env
-# Edit .env with your API keys and credentials
+nano .env
 ```
 
-### 3. Run with Docker
+### 2) （可选）调整 `config.yaml`
+
+- 不需要期刊：将 `journals.enabled: false`，并可关闭 `ezproxy.enabled: false`
+- 调整定时：`runtime.schedule`（cron 表达式，容器时区见 `TZ`）
+
+### 3) 启动
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
-See [DEPLOY.md](DEPLOY.md) for detailed deployment instructions.
+### 4) 访问 Web UI
 
-## Web Frontend
+- `http://localhost:8000`
+- 健康检查：`http://localhost:8000/api/health`
 
-The container also exposes a lightweight web UI on port `8000`:
+### 5) 立即跑一遍（可选）
 
-```
-http://<your-server-ip>:8000
-```
-
-## Configuration
-
-### Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `LIGHT_LLM_API_BASE` | Light LLM API endpoint (OpenAI compatible) |
-| `LIGHT_LLM_API_KEY` | Light LLM API key |
-| `LIGHT_LLM_MODEL` | Light LLM model name |
-| `HEAVY_LLM_API_BASE` | Heavy LLM API endpoint |
-| `HEAVY_LLM_API_KEY` | Heavy LLM API key |
-| `HEAVY_LLM_MODEL` | Heavy LLM model name (e.g., gemini-2.0-flash) |
-| `HKU_LIBRARY_UID` | (Optional) Library credentials for EZproxy |
-| `HKU_LIBRARY_PIN` | (Optional) Library credentials for EZproxy |
-
-### Keywords Configuration
-
-Edit `config.yaml` to customize your research keywords:
-
-```yaml
-keywords:
-  - name: "Medical Image Analysis"
-    description: "医学图像分析、医学影像AI"
-    examples:
-      - "medical image segmentation, detection"
-      - "CT, MRI, X-ray analysis"
+```bash
+docker compose exec paper-radar python main.py --dry-run
 ```
 
-## Supported LLM Providers
+生成的日报会写入 `reports/` 与 `reports/json/`，Web UI 会自动显示可选日期。
 
-- **Light LLM**: Any OpenAI-compatible API (DeepSeek, OpenAI, etc.)
-- **Heavy LLM**: Gemini (recommended for PDF analysis), or any multimodal LLM
+## 关键配置
 
-## Project Structure
+### 环境变量（`.env`）
 
-```
-paper-radar/
-├── agents/                 # LLM agents
-│   ├── filter_agent.py     # Keyword matching
-│   ├── analyzer_agent.py   # PDF analysis
-│   └── summary_agent.py    # Field summaries
-├── models/                 # Data models
-├── scripts/                # Docker scripts
-├── config.yaml             # Main configuration
-├── main.py                 # Entry point
-└── docker-compose.yml      # Docker deployment
-```
+| 变量 | 说明 |
+| --- | --- |
+| `LIGHT_LLM_API_BASE` / `LIGHT_LLM_API_KEY` / `LIGHT_LLM_MODEL` | 轻量 LLM（OpenAI compatible） |
+| `HEAVY_LLM_API_BASE` / `HEAVY_LLM_API_KEY` / `HEAVY_LLM_MODEL` | 多模态 LLM（PDF 分析） |
+| `HKU_LIBRARY_UID` / `HKU_LIBRARY_PIN` | （可选）EZproxy 凭据（访问付费期刊 PDF） |
+| `TZ` | 容器时区（默认 `Asia/Shanghai`） |
+| `WEB_PORT` | Web 端口（默认 `8000`） |
+| `RUN_ON_START` | 容器启动时立即运行一次（默认 `false`） |
+
+### `config.yaml`
+
+- `keywords`: 领域列表（`name` / `description` / `examples`）
+- `arxiv`: arXiv 类别、抓取数量与重试策略
+- `journals`: 期刊源开关与列表
+- `llm`: light/heavy/summary 的模型与限速
+- `runtime`: cron schedule、并发、超时等
+- `output`: markdown/json 输出路径
+
+## 部署到 VPS / NAS
+
+- 详细步骤见 `DEPLOY.md`
+- 生产建议：将 `8000` 端口置于 Nginx/Caddy 反代之后再开放公网访问（HTTPS + 访问控制）
+
+## 文档
+
+- `DESIGN.md`：整体流程、模块职责与设计说明
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+MIT (see `LICENSE`)

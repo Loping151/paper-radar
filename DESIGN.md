@@ -34,7 +34,7 @@
 │  │  Light LLM (如 Qwen2.5-7B / GPT-4o-mini)                 │   │
 │  │  ├─ 输入: 论文 title + abstract + 预设关键词列表           │   │
 │  │  ├─ 任务: 判断是否匹配任一关键词，返回匹配的关键词           │   │
-│  │  └─ 输出: { matched: bool, keywords: [...], reason: ""}  │   │
+│  │  └─ 输出: { matched, matched_keywords, relevance, reason }│   │
 │  └──────────────────────────────────────────────────────────┘   │
 │  批量处理所有论文，筛选出匹配的论文                                │
 └─────────────────────────────────────────────────────────────────┘
@@ -48,8 +48,9 @@
 │  │  ├─ 任务: 阅读完整 PDF，深度分析论文内容                    │   │
 │  │  └─ 输出: {                                              │   │
 │  │  │     title, authors, affiliations,                    │   │
-│  │  │     tldr, key_contributions, methodology,            │   │
-│  │  │     limitations, relevance_analysis                  │   │
+│  │  │     tldr, contributions, methodology, experiments,   │   │
+│  │  │     innovations, limitations, code_url, dataset_info, │   │
+│  │  │     quality_score, score_reason                      │   │
 │  │  │  }                                                   │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │  仅处理 Stage 1 筛选出的论文                                      │
@@ -69,9 +70,9 @@
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Stage 4: 报告生成与推送                                          │
-│  ├─ 组装最终报告 (HTML / Markdown)                               │
-│  └─ 推送 (邮件 / Webhook)                                        │
+│  Stage 4: 报告生成与保存                                          │
+│  ├─ 保存 Markdown / JSON 到磁盘                                  │
+│  └─ Web UI 读取 JSON 展示                                        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -120,79 +121,52 @@ paper-radar/
 
 ---
 
-## 配置文件设计 (config.yaml)
+## 配置文件设计 (`config.yaml`)
+
+- 根目录 `config.yaml` 是主配置文件，支持 `${ENV_VAR}` 形式引用环境变量。
+- 完整示例请直接查看仓库内的 `config.yaml`；下面只列出核心字段示意：
 
 ```yaml
-# ===========================================
-# 关键词配置
-# ===========================================
 keywords:
-  - name: "多模态大模型"
-    description: "视觉语言模型、多模态理解与生成、图文交互"
+  - name: "Medical Image Analysis"
+    description: "医学图像分析、医学影像AI、放射学、超声、CT、MRI"
     examples:
-      - "VLM, MLLM, vision-language model"
-      - "image captioning, visual question answering"
-      - "multimodal reasoning, cross-modal learning"
+      - "medical image segmentation, detection, classification"
 
-  - name: "LLM Agent"
-    description: "基于大语言模型的智能体、工具调用、自主决策"
-    examples:
-      - "autonomous agent, tool use, function calling"
-      - "planning, reasoning, decision making"
-      - "multi-agent, agent collaboration"
-
-  - name: "RAG与知识增强"
-    description: "检索增强生成、知识库、向量数据库"
-    examples:
-      - "retrieval augmented generation"
-      - "knowledge base, vector database"
-      - "embedding, semantic search"
-
-  - name: "推理与思维链"
-    description: "逻辑推理、Chain-of-Thought、数学推理"
-    examples:
-      - "chain of thought, step-by-step reasoning"
-      - "mathematical reasoning, logical inference"
-      - "self-consistency, tree of thought"
-
-# ===========================================
-# arXiv 配置
-# ===========================================
 arxiv:
-  categories: "cs.AI+cs.CV+cs.CL+cs.LG+cs.MA"
-  max_papers_per_day: 200
+  enabled: true
+  categories: "cs.AI+cs.CV+cs.CL+cs.LG+eess.IV+q-bio.QM"
+  max_papers_per_day: 0
 
-# ===========================================
-# LLM 配置 - 双 Agent 架构
-# ===========================================
+journals:
+  enabled: true
+  max_papers_per_journal: 30
+  sources:
+    - name: "Nature"
+      key: "nature"
+      enabled: true
+
 llm:
-  # 轻量级 LLM - 用于快速筛选匹配
   light:
-    api_base: "https://api.siliconflow.cn/v1"
+    api_base: "${LIGHT_LLM_API_BASE}"
     api_key: "${LIGHT_LLM_API_KEY}"
-    model: "Qwen/Qwen2.5-7B-Instruct"
+    model: "${LIGHT_LLM_MODEL}"
     temperature: 0.1
     max_tokens: 500
-
-  # 重量级多模态 LLM - 用于 PDF 深度分析
   heavy:
-    api_base: "https://api.openai.com/v1"
+    api_base: "${HEAVY_LLM_API_BASE}"
     api_key: "${HEAVY_LLM_API_KEY}"
-    model: "gpt-4o"
+    model: "${HEAVY_LLM_MODEL}"
     temperature: 0.3
-    max_tokens: 4000
-
-  # 总结 Agent - 可复用 light 或 heavy
+    max_tokens: 40000
+    rate_limit:
+      requests_per_minute: 3
   summary:
-    use: "light"  # 或 "heavy"
+    use: "light"
     temperature: 0.5
     max_tokens: 2000
 
-# ===========================================
-# 输出配置
-# ===========================================
 output:
-  language: "Chinese"
   formats:
     markdown:
       enabled: true
@@ -201,15 +175,12 @@ output:
       enabled: true
       path: "./reports/json/"
 
-# ===========================================
-# 运行配置
-# ===========================================
 runtime:
-  schedule: "0 9 * * *"
+  schedule: "0 10 * * *"
   timezone: "Asia/Shanghai"
-  retry_count: 3
-  pdf_timeout: 60
-  concurrent_analysis: 3
+
+ezproxy:
+  enabled: true
 ```
 
 ---
@@ -256,7 +227,11 @@ runtime:
             "relation": "具体关联说明",
             "contribution_level": "high/medium/low"
         }
-    }
+    },
+    "code_url": "代码仓库链接（若无则留空）",
+    "dataset_info": "数据集信息（包含规模；若未明确提及则写'未明确说明'）",
+    "quality_score": 7,
+    "score_reason": "一句话解释评分理由"
 }
 ```
 
@@ -268,9 +243,42 @@ runtime:
 
 **内容要求**:
 1. 今日概览: 论文数量和整体趋势
-2. 重点突破: 最值得关注的1-2项研究
+2. 重点突破: 最值得关注的1-2项研究（请用“论文N”编号引用）
 3. 技术趋势: 观察到的技术方向
-4. 值得跟进: 建议深入阅读的论文
+4. 值得跟进: 建议深入阅读的论文（请用“论文N”编号引用）
+
+---
+
+## Web UI 与报告格式
+
+### Web API
+
+- `/`：返回前端页面（`web/index.html`）
+- `/static/*`：静态资源（`web/app.js`、`web/styles.css`）
+- `/api/health`：健康检查
+- `/api/dates`：返回可用报告日期（扫描 `reports/json/`）
+- `/api/report?date=YYYY-MM-DD`：返回某天报告 JSON（不传 `date` 则返回最新）
+
+### JSON 结构（Reporter 输出）
+
+顶层字段：
+- `date`, `total_papers`, `matched_papers`, `analyzed_papers`
+- `keywords`: 领域列表
+- `summaries`: `{ keyword: markdown }`
+- `papers_by_keyword`: `{ keyword: [paper...] }`
+
+每篇 `paper` 常用字段（节选）：
+- `paper_number`: 该领域内稳定编号（用于总结引用与跳转）
+- `title`, `authors`, `tldr`, `quality_score`, `score_reason`
+- `matched_keywords`, `source`, `primary_category`, `published`
+- `pdf_url`, `abstract_url`, `code_url`, `dataset_info`
+
+### 编号与可跳转引用
+
+- SummaryAgent 产出的总结需要用“论文N”进行引用。
+- 前端会把总结里的每个数字转换为可点击的 `.paper-ref`，并链接到对应论文卡片：
+  - 卡片 `id`: `paper-${slugify(keyword)}-${paper_number}`
+- 即使排序、搜索或分页，只要 `paper_number` 稳定，引用跳转就不会错位。
 
 ---
 
@@ -289,6 +297,8 @@ runtime:
 | HKU_LIBRARY_UID | HKU 图书馆用户 ID | 否* |
 | HKU_LIBRARY_PIN | HKU 图书馆 PIN | 否* |
 | TZ | 时区 | 否 |
+| WEB_PORT | Web UI 端口（默认 8000） | 否 |
+| RUN_ON_START | 容器启动时立即运行一次（默认 false） | 否 |
 
 > *注: 如需访问 Nature 等付费期刊 PDF，则 EZproxy 凭据为必填
 
