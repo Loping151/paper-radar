@@ -11,12 +11,19 @@ keywords:
       - "CT, MRI, X-ray, ultrasound, mammography"
       - "medical image segmentation, detection, classification"
 
-  - name: "Computational Pathology"
-    description: "计算病理学、数字病理、全切片图像分析、病理AI"
+  - name: "Generative Models for Medical Imaging"
+    description: "生成式模型在医学影像中的应用，包括3D高斯溅射、扩散模型等"
     examples:
-      - "computational pathology, digital pathology, pathology AI"
-      - "whole slide image, WSI, histopathology"
-      - "tissue analysis, cell segmentation, cancer detection"
+      - "3D Gaussian Splatting, 3DGS, neural radiance fields, NeRF"
+      - "diffusion model, denoising diffusion, DDPM, score-based generative model"
+      - "medical image synthesis, image generation, reconstruction"
+
+  - name: "Medical AI Safety and Security"
+    description: "医疗AI安全，包括对抗攻击、提示注入、推理安全、模型鲁棒性"
+    examples:
+      - "adversarial attack, prompt injection, jailbreak, red teaming"
+      - "inference security, model robustness, safety alignment"
+      - "healthcare AI security, medical AI trustworthiness, reliability"
 
   - name: "Neural Signal Encoding and Decoding"
     description: "神经信号编码与解码、神经信号处理、神经信号分析"
