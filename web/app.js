@@ -540,7 +540,9 @@ function renderPapers(report) {
       const authors = escapeHtml(paper.authors?.slice(0, 4).join(', ') || '');
       const abstractText = paper.summary || '';
       const abstractUrl = sanitizeUrl(paper.abstract_url || '');
-      const pdfUrl = sanitizeUrl(paper.pdf_url || '');
+      const remotePdfUrl = sanitizeUrl(paper.pdf_url || '');
+      const localPdfUrl = buildLocalPdfUrl(paper, report);
+      const pdfActionUrl = localPdfUrl || remotePdfUrl;
       const codeUrl = sanitizeUrl(paper.code_url || '');
 
       const paperKey = getPaperKey(paper);
@@ -658,7 +660,7 @@ function renderPapers(report) {
 
           <div class="paper-actions">
             ${abstractUrl ? `<a class="secondary" href="${escapeHtml(abstractUrl)}" target="_blank" rel="noreferrer noopener">页面</a>` : ''}
-            ${pdfUrl ? `<a href="${escapeHtml(pdfUrl)}" target="_blank" rel="noreferrer noopener">PDF</a>` : ''}
+            ${pdfActionUrl ? `<a href="${escapeHtml(pdfActionUrl)}" target="_blank" rel="noreferrer noopener">PDF</a>` : ''}
             ${codeUrl ? `<a href="${escapeHtml(codeUrl)}" target="_blank" rel="noreferrer noopener">代码</a>` : ''}
           </div>
         </article>
@@ -716,6 +718,33 @@ function sanitizeUrl(url) {
   if (lower.startsWith('http://') || lower.startsWith('https://')) return trimmed;
   if (trimmed.startsWith('#')) return trimmed;
   return '';
+}
+
+function buildLocalPdfUrl(paper, report) {
+  const paperId = String(paper?.id || paper?.arxiv_id || '').trim();
+  if (!paperId) return '';
+
+  const params = new URLSearchParams();
+  params.set('paper_id', paperId);
+
+  const reportDate = String(report?.date || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(reportDate)) {
+    params.set('date', reportDate);
+  }
+
+  const sourceType = resolveSourceType(paper);
+  const isArxivPreprint = sourceType === 'preprint' && !paperId.includes(':');
+  const storageSource = isArxivPreprint ? 'arxiv' : String(paper?.primary_category || '').trim();
+  if (storageSource) {
+    params.set('source', storageSource);
+  }
+
+  const fallback = sanitizeUrl(paper?.pdf_url || '');
+  if (fallback) {
+    params.set('fallback_url', fallback);
+  }
+
+  return `/api/local-pdf?${params.toString()}`;
 }
 
 function slugify(text) {
