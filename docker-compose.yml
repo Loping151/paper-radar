@@ -8,9 +8,6 @@ services:
     environment:
       # Timezone
       - TZ=Asia/Shanghai
-      - CURL_CA_BUNDLE=""
-      - REQUESTS_CA_BUNDLE=""
-      - SSL_CERT_FILE=""
 
       # Run once on container start (useful for testing)
       - RUN_ON_START=${RUN_ON_START:-false}

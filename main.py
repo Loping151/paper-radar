@@ -296,11 +296,21 @@ def main():
             headless=ezproxy_config.get("headless", True),
         )
 
+    analysis_workers = config.get("runtime", {}).get("concurrent_analysis", 1)
+    try:
+        analysis_workers = int(analysis_workers)
+    except (TypeError, ValueError):
+        analysis_workers = 1
+    if analysis_workers < 1:
+        analysis_workers = 1
+    logger.info(f"Heavy LLM analysis concurrency: {analysis_workers}")
+
     analyses = analyzer_agent.analyze_papers(
         filter_results,
         pdf_handler,
         ezproxy_handler=ezproxy_handler,
         today_date=today_date,
+        max_workers=analysis_workers,
     )
 
     successful_analyses = [a for a in analyses if a.success]

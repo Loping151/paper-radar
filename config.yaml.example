@@ -227,7 +227,7 @@ runtime:
   retry_count: 3
   pdf_timeout: 120
   concurrent_filtering: 5  # Stage 1 轻量模型并发筛选
-  concurrent_analysis: 3
+  concurrent_analysis: 20  # Stage 2 重量模型并发分析
 
 # ===========================================
 # EZproxy 配置 - 用于访问需要机构认证的期刊 PDF

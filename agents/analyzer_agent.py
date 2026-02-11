@@ -3,6 +3,8 @@
 import json
 import re
 import time
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 from loguru import logger
 
@@ -87,21 +89,23 @@ class AnalyzerAgent:
         self.language = language
         self.requests_per_minute = requests_per_minute
         self._last_request_time = 0
+        self._rate_lock = threading.Lock()
 
     def _wait_for_rate_limit(self):
-        """Wait if necessary to respect rate limit."""
+        """Wait if necessary to respect rate limit (thread-safe)."""
         if self.requests_per_minute <= 0:
             return
 
-        min_interval = 60.0 / self.requests_per_minute
-        elapsed = time.time() - self._last_request_time
+        with self._rate_lock:
+            min_interval = 60.0 / self.requests_per_minute
+            elapsed = time.time() - self._last_request_time
 
-        if elapsed < min_interval:
-            wait_time = min_interval - elapsed
-            logger.info(f"Rate limit: waiting {wait_time:.1f}s before next request...")
-            time.sleep(wait_time)
+            if elapsed < min_interval:
+                wait_time = min_interval - elapsed
+                logger.info(f"Rate limit: waiting {wait_time:.1f}s before next request...")
+                time.sleep(wait_time)
 
-        self._last_request_time = time.time()
+            self._last_request_time = time.time()
 
     def _parse_response(self, response: str) -> Optional[dict]:
         """Parse LLM response to extract JSON."""
@@ -231,113 +235,142 @@ class AnalyzerAgent:
                 error=str(e),
             )
 
+    def _analyze_single(
+        self,
+        index: int,
+        total: int,
+        fr: FilterResult,
+        pdf_handler,
+        ezproxy_handler,
+        today_date: str,
+    ) -> PaperAnalysis:
+        """Analyze a single paper (used by both serial and concurrent paths)."""
+        paper = fr.paper
+        logger.info(f"[{index}/{total}] Analyzing: {paper.title[:60]}...")
+
+        # Choose appropriate PDF handler based on paper source
+        pdf_base64 = None
+        selected_pdf_handler = pdf_handler
+        if paper.is_journal and ezproxy_handler:
+            logger.debug(f"  Using EZproxy handler for journal paper")
+            selected_pdf_handler = ezproxy_handler
+            pdf_base64 = ezproxy_handler.download_as_base64(
+                paper.pdf_url,
+                paper_id=paper.arxiv_id,
+                require_auth=True,
+                source=paper.primary_category,
+                date=today_date,
+            )
+        else:
+            is_arxiv_preprint = (
+                paper.source == "preprint" and ":" not in paper.arxiv_id
+            )
+            storage_source = "arxiv" if is_arxiv_preprint else paper.primary_category
+            pdf_base64 = pdf_handler.download_as_base64(
+                paper.pdf_url,
+                arxiv_id=paper.arxiv_id,
+                source=storage_source,
+                date=today_date,
+            )
+
+        if not pdf_base64:
+            logger.warning(f"  [{index}/{total}] Failed to download PDF")
+            return PaperAnalysis(
+                arxiv_id=paper.arxiv_id,
+                pdf_url=paper.pdf_url,
+                matched_keywords=fr.matched_keywords,
+                paper=paper,
+                success=False,
+                error="Failed to download PDF",
+            )
+
+        analysis = self.analyze_paper(paper, fr.matched_keywords, pdf_base64)
+
+        # Retry once with compressed PDF only when payload is too large (413)
+        if (
+            not analysis.success
+            and self._is_request_too_large_error(analysis.error)
+            and selected_pdf_handler is not None
+        ):
+            logger.warning(
+                f"  413 detected for {paper.arxiv_id}, compressing PDF and retrying once..."
+            )
+            compressed_pdf = selected_pdf_handler.compress_base64_for_retry(
+                pdf_base64, hint=paper.arxiv_id,
+            )
+            if compressed_pdf:
+                analysis = self.analyze_paper(paper, fr.matched_keywords, compressed_pdf)
+            else:
+                logger.warning(
+                    f"  Compression unavailable/failed for {paper.arxiv_id}, skip retry"
+                )
+
+        analysis.paper = paper
+
+        if analysis.success:
+            logger.info(f"  [{index}/{total}] Analysis complete: {analysis.tldr[:50]}...")
+        else:
+            logger.warning(f"  [{index}/{total}] Analysis failed: {analysis.error}")
+
+        return analysis
+
     def analyze_papers(
         self,
         filter_results: list[FilterResult],
         pdf_handler,
         ezproxy_handler=None,
         today_date: str = None,
+        max_workers: int = 1,
     ) -> list[PaperAnalysis]:
         """
-        Analyze multiple papers.
+        Analyze multiple papers, optionally in parallel.
 
         Args:
             filter_results: List of FilterResult from filter agent
             pdf_handler: PDFHandler instance for downloading arXiv PDFs
             ezproxy_handler: Optional EZproxyPDFHandler for paywalled journal PDFs
             today_date: Optional date string (YYYY-MM-DD) for organized PDF storage
+            max_workers: Number of concurrent analysis workers (1 = serial)
 
         Returns:
-            List of PaperAnalysis results
+            List of PaperAnalysis results (order preserved)
         """
-        analyses = []
         total = len(filter_results)
 
-        for i, fr in enumerate(filter_results, 1):
-            paper = fr.paper
-            logger.info(f"[{i}/{total}] Analyzing: {paper.title[:60]}...")
-
-            # Choose appropriate PDF handler based on paper source
-            pdf_base64 = None
-            selected_pdf_handler = pdf_handler
-            if paper.is_journal and ezproxy_handler:
-                # Use EZproxy for journal papers (Nature, etc.)
-                logger.debug(f"  Using EZproxy handler for journal paper")
-                selected_pdf_handler = ezproxy_handler
-                pdf_base64 = ezproxy_handler.download_as_base64(
-                    paper.pdf_url,
-                    paper_id=paper.arxiv_id,
-                    require_auth=True,
-                    source=paper.primary_category,
-                    date=today_date,
+        if max_workers <= 1:
+            analyses = []
+            for i, fr in enumerate(filter_results, 1):
+                analysis = self._analyze_single(
+                    i, total, fr, pdf_handler, ezproxy_handler, today_date,
                 )
-            else:
-                # Use standard handler for arXiv and preprint papers
-                is_arxiv_preprint = (
-                    paper.source == "preprint" and ":" not in paper.arxiv_id
-                )
-                storage_source = "arxiv" if is_arxiv_preprint else paper.primary_category
-                pdf_base64 = pdf_handler.download_as_base64(
-                    paper.pdf_url,
-                    arxiv_id=paper.arxiv_id,
-                    source=storage_source,
-                    date=today_date,
-                )
-
-            if not pdf_base64:
-                logger.warning(f"  ✗ Failed to download PDF")
-                analyses.append(
-                    PaperAnalysis(
-                        arxiv_id=paper.arxiv_id,
-                        pdf_url=paper.pdf_url,
-                        matched_keywords=fr.matched_keywords,
-                        paper=paper,
-                        success=False,
-                        error="Failed to download PDF",
+                analyses.append(analysis)
+        else:
+            logger.info(f"Concurrent analysis with {max_workers} workers")
+            analyses = [None] * total
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_idx = {}
+                for i, fr in enumerate(filter_results):
+                    future = executor.submit(
+                        self._analyze_single,
+                        i + 1, total, fr, pdf_handler, ezproxy_handler, today_date,
                     )
-                )
-                continue
+                    future_to_idx[future] = i
 
-            # Analyze
-            analysis = self.analyze_paper(
-                paper,
-                fr.matched_keywords,
-                pdf_base64,
-            )
-
-            # Retry once with compressed PDF only when payload is too large (413)
-            if (
-                not analysis.success
-                and self._is_request_too_large_error(analysis.error)
-                and selected_pdf_handler is not None
-            ):
-                logger.warning(
-                    f"  413 detected for {paper.arxiv_id}, compressing PDF and retrying once..."
-                )
-                compressed_pdf = selected_pdf_handler.compress_base64_for_retry(
-                    pdf_base64,
-                    hint=paper.arxiv_id,
-                )
-                if compressed_pdf:
-                    analysis = self.analyze_paper(
-                        paper,
-                        fr.matched_keywords,
-                        compressed_pdf,
-                    )
-                else:
-                    logger.warning(
-                        f"  Compression unavailable/failed for {paper.arxiv_id}, skip retry"
-                    )
-
-            # Store reference to original paper
-            analysis.paper = paper
-
-            if analysis.success:
-                logger.info(f"  ✓ Analysis complete: {analysis.tldr[:50]}...")
-            else:
-                logger.warning(f"  ✗ Analysis failed: {analysis.error}")
-
-            analyses.append(analysis)
+                for future in as_completed(future_to_idx):
+                    idx = future_to_idx[future]
+                    try:
+                        analyses[idx] = future.result()
+                    except Exception as e:
+                        fr = filter_results[idx]
+                        logger.error(f"  [{idx+1}/{total}] Unexpected error: {e}")
+                        analyses[idx] = PaperAnalysis(
+                            arxiv_id=fr.paper.arxiv_id,
+                            pdf_url=fr.paper.pdf_url,
+                            matched_keywords=fr.matched_keywords,
+                            paper=fr.paper,
+                            success=False,
+                            error=str(e),
+                        )
 
         successful = sum(1 for a in analyses if a.success)
         logger.info(f"Analysis complete: {successful}/{total} papers analyzed successfully")
