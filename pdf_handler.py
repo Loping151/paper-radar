@@ -6,6 +6,7 @@ import pickle
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 import httpx
 import requests
@@ -413,6 +414,7 @@ class EZproxyPDFHandler(PDFHandler):
         self._session: Optional[requests.Session] = None
         self._driver = None
         self._authenticated = False
+        self._auth_lock = threading.Lock()
 
         # Clear cached cookies on startup to force fresh login each run
         self._clear_cached_cookies()
@@ -644,7 +646,7 @@ class EZproxyPDFHandler(PDFHandler):
 
     def ensure_authenticated(self, test_url: str = "https://www.nature.com") -> bool:
         """
-        Ensure we have a valid authenticated session.
+        Ensure we have a valid authenticated session (thread-safe).
 
         Args:
             test_url: URL to test authentication against
@@ -652,8 +654,8 @@ class EZproxyPDFHandler(PDFHandler):
         Returns:
             True if authenticated
         """
+        # Fast path: already authenticated (no lock needed)
         if self._authenticated and self._session:
-            # Test if session is still valid
             try:
                 proxied_url = self._convert_to_ezproxy_url(test_url)
                 response = self._session.get(proxied_url, timeout=10)
@@ -662,21 +664,33 @@ class EZproxyPDFHandler(PDFHandler):
             except Exception:
                 pass
 
-        # Try to load cookies from file
-        if self._load_cookies_to_session():
-            try:
-                proxied_url = self._convert_to_ezproxy_url(test_url)
-                response = self._session.get(proxied_url, timeout=10)
-                if response.status_code == 200:
-                    self._authenticated = True
-                    logger.info("Using cached authentication")
-                    return True
-            except Exception:
-                pass
+        # Slow path: need login, serialize with lock
+        with self._auth_lock:
+            # Double-check after acquiring lock (another thread may have logged in)
+            if self._authenticated and self._session:
+                try:
+                    proxied_url = self._convert_to_ezproxy_url(test_url)
+                    response = self._session.get(proxied_url, timeout=10)
+                    if response.status_code == 200:
+                        return True
+                except Exception:
+                    pass
 
-        # Need to login
-        logger.info("Cached session invalid, performing fresh login...")
-        return self._perform_login(test_url)
+            # Try to load cookies from file
+            if self._load_cookies_to_session():
+                try:
+                    proxied_url = self._convert_to_ezproxy_url(test_url)
+                    response = self._session.get(proxied_url, timeout=10)
+                    if response.status_code == 200:
+                        self._authenticated = True
+                        logger.info("Using cached authentication")
+                        return True
+                except Exception:
+                    pass
+
+            # Need to login
+            logger.info("Cached session invalid, performing fresh login...")
+            return self._perform_login(test_url)
 
     def download_as_base64(
         self,

@@ -109,6 +109,9 @@ class AnalyzerAgent:
 
     def _parse_response(self, response: str) -> Optional[dict]:
         """Parse LLM response to extract JSON."""
+        # Strip thinking blocks (e.g. <think>...</think>)
+        response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
+
         # Try direct JSON parsing
         try:
             return json.loads(response)
