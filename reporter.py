@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from typing import Optional
 
+import httpx
+import markdown
 from loguru import logger
 
 from models import DailyReport, PaperAnalysis
@@ -302,14 +304,95 @@ class Reporter:
         logger.info(f"JSON report saved to: {file_path}")
         return file_path
 
+    @staticmethod
+    def _markdown_to_html(md_content: str) -> str:
+        """Convert markdown report to styled HTML email."""
+        body_html = markdown.markdown(
+            md_content,
+            extensions=["tables", "fenced_code"],
+        )
+        return f"""\
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  max-width:800px;margin:0 auto;padding:20px;color:#333;line-height:1.6;">
+<style>
+  h1 {{font-size:24px;border-bottom:2px solid #2563eb;padding-bottom:8px;}}
+  h2 {{font-size:20px;color:#1e40af;margin-top:28px;}}
+  h3 {{font-size:16px;color:#374151;}}
+  h4 {{font-size:15px;margin-bottom:4px;}}
+  h4 a {{color:#2563eb;text-decoration:none;}}
+  table {{border-collapse:collapse;width:100%;margin:8px 0;font-size:14px;}}
+  th,td {{border:1px solid #e5e7eb;padding:6px 10px;text-align:left;}}
+  th {{background:#f3f4f6;}}
+  blockquote {{border-left:4px solid #2563eb;margin:12px 0;padding:8px 16px;
+    background:#eff6ff;color:#1e40af;font-size:14px;}}
+  hr {{border:none;border-top:1px solid #e5e7eb;margin:20px 0;}}
+  a {{color:#2563eb;}}
+  ul {{padding-left:20px;}}
+  li {{margin:4px 0;}}
+</style>
+{body_html}
+</body></html>"""
+
+    def send_email(self, report: DailyReport, markdown_content: str) -> dict:
+        """Send report via email proxy as styled HTML."""
+        email_config = self.config.get("email", {})
+        if not email_config.get("enabled", False):
+            return {"success": False, "error": "Email not enabled"}
+
+        api_url = email_config.get("api_url", "")
+        api_token = email_config.get("api_token", "")
+        recipients = email_config.get("recipients", [])
+        sender_name = email_config.get("sender_name", "PaperRadar")
+
+        if not api_url or not api_token or not recipients:
+            return {"success": False, "error": "Email config incomplete"}
+
+        subject = f"📚 论文每日速递 - {report.date} ({report.matched_papers} 篇匹配)"
+        html_body = self._markdown_to_html(markdown_content)
+
+        results = {}
+        for to_addr in recipients:
+            try:
+                resp = httpx.post(
+                    f"{api_url}/api/send",
+                    headers={
+                        "Authorization": f"Bearer {api_token}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "sender_name": sender_name,
+                        "to": to_addr,
+                        "subject": subject,
+                        "body": markdown_content,
+                        "html_body": html_body,
+                    },
+                    timeout=30,
+                )
+                data = resp.json()
+                if data.get("success"):
+                    logger.info(f"Email queued for {to_addr}, task_id={data.get('task_id')}")
+                    results[to_addr] = {"success": True, "task_id": data.get("task_id")}
+                else:
+                    logger.error(f"Email failed for {to_addr}: {data}")
+                    results[to_addr] = {"success": False, "error": str(data)}
+            except Exception as e:
+                logger.error(f"Email send error for {to_addr}: {e}")
+                results[to_addr] = {"success": False, "error": str(e)}
+
+        return results
+
     def generate_and_send(self, report: DailyReport) -> dict:
-        """Generate report through all configured output formats (no email)."""
+        """Generate report through all configured output formats and send email."""
         results = {}
         formats = self.output_config.get("formats", {})
 
+        markdown_content = None
         markdown_config = formats.get("markdown", {})
         if markdown_config.get("enabled", True):
             try:
+                markdown_content = self.generate_markdown(report)
                 path = self.save_markdown(report)
                 results["markdown"] = {"success": True, "path": str(path)}
             except Exception as e:
@@ -324,5 +407,17 @@ class Reporter:
             except Exception as e:
                 logger.error(f"Failed to save JSON: {e}")
                 results["json"] = {"success": False, "error": str(e)}
+
+        # Send email
+        email_config = self.config.get("email", {})
+        if email_config.get("enabled", False):
+            if markdown_content is None:
+                markdown_content = self.generate_markdown(report)
+            try:
+                email_results = self.send_email(report, markdown_content)
+                results["email"] = email_results
+            except Exception as e:
+                logger.error(f"Failed to send email: {e}")
+                results["email"] = {"success": False, "error": str(e)}
 
         return results

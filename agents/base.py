@@ -1,5 +1,6 @@
 """Base LLM client for OpenAI-compatible APIs."""
 
+import time
 import httpx
 from openai import OpenAI
 from typing import Optional
@@ -32,7 +33,7 @@ class BaseLLMClient:
         self.client = OpenAI(
             base_url=api_base,
             api_key=api_key,
-            http_client=httpx.Client(timeout=180),
+            http_client=httpx.Client(timeout=180, verify=False),
         )
         self.model = model
         self.temperature = temperature
@@ -124,3 +125,48 @@ class BaseLLMClient:
         except Exception as e:
             logger.error(f"LLM chat with PDF error: {e}")
             raise
+
+
+class ResilientLLMClient:
+    """LLM client with retry and fallback across multiple providers."""
+
+    # Keys that are not BaseLLMClient constructor parameters
+    _non_client_keys = {"rate_limit"}
+
+    def __init__(self, configs: list[dict], max_retries: int = 3, retry_delay: float = 1.0):
+        self.configs = configs
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
+        self.clients: list[BaseLLMClient] = []
+        for cfg in configs:
+            clean = {k: v for k, v in cfg.items() if k not in self._non_client_keys}
+            self.clients.append(BaseLLMClient(**clean))
+
+    def chat(self, messages, temperature=None, max_tokens=None, **kwargs) -> str:
+        return self._call_with_fallback(
+            "chat", messages=messages,
+            temperature=temperature, max_tokens=max_tokens, **kwargs,
+        )
+
+    def chat_with_pdf(self, prompt, pdf_base64, temperature=None, max_tokens=None) -> str:
+        return self._call_with_fallback(
+            "chat_with_pdf", prompt=prompt,
+            pdf_base64=pdf_base64, temperature=temperature, max_tokens=max_tokens,
+        )
+
+    def _call_with_fallback(self, method_name: str, **kwargs) -> str:
+        last_error = None
+        for i, client in enumerate(self.clients):
+            for attempt in range(1, self.max_retries + 1):
+                try:
+                    return getattr(client, method_name)(**kwargs)
+                except Exception as e:
+                    last_error = e
+                    logger.warning(
+                        f"LLM provider {i+1}/{len(self.clients)} "
+                        f"attempt {attempt}/{self.max_retries} failed: {e}"
+                    )
+                    if attempt < self.max_retries:
+                        time.sleep(self.retry_delay * attempt)
+            logger.error(f"LLM provider {i+1} exhausted all retries, trying next...")
+        raise last_error

@@ -8,10 +8,13 @@ services:
     environment:
       # Timezone
       - TZ=Asia/Shanghai
+      - CURL_CA_BUNDLE=""
+      - REQUESTS_CA_BUNDLE=""
+      - SSL_CERT_FILE=""
 
       # Run once on container start (useful for testing)
-      - RUN_ON_START=false
-      - WEB_PORT=8000
+      - RUN_ON_START=${RUN_ON_START:-false}
+      - WEB_PORT=${WEB_PORT:-8081}
 
       # ===== Light LLM Configuration (for filtering) =====
       # Use any OpenAI-compatible API
@@ -40,8 +43,10 @@ services:
 
       # Timezone sync
       - /etc/localtime:/etc/localtime:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
-      - "8000:8000"
+      - "8081:8081"
 
     # Healthcheck
     healthcheck:

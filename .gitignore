@@ -36,6 +36,7 @@ ENV/
 .env
 .env.local
 .env.*.local
+config.yaml
 *.pem
 *.key
 

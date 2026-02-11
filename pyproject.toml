@@ -17,6 +17,7 @@ dependencies = [
     "selenium>=4.15.0",
     "webdriver-manager>=4.0.1",
     "uvicorn>=0.30.0",
+    "markdown>=3.5",
 ]
 
 [build-system]

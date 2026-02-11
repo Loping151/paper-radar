@@ -17,7 +17,7 @@ from fetcher import ArxivFetcher
 from journal_fetcher import JournalFetcher
 from paper_history import PaperHistory
 from pdf_handler import PDFHandler, EZproxyPDFHandler
-from agents import BaseLLMClient, FilterAgent, AnalyzerAgent, SummaryAgent
+from agents import ResilientLLMClient, FilterAgent, AnalyzerAgent, SummaryAgent
 from reporter import Reporter
 from models import DailyReport, PaperAnalysis
 
@@ -206,12 +206,12 @@ def main():
     logger.info("")
     logger.info("[Stage 1] Filtering papers with Light LLM...")
 
-    light_llm_config = get_llm_config(config, "light")
-    if not light_llm_config.get("api_key"):
+    light_llm_configs = get_llm_config(config, "light")
+    if not light_llm_configs[0].get("api_key"):
         logger.error("Light LLM API key not configured")
         sys.exit(1)
 
-    light_llm = BaseLLMClient(**light_llm_config)
+    light_llm = ResilientLLMClient(light_llm_configs)
     filter_agent = FilterAgent(light_llm, keywords)
 
     filter_workers = config.get("runtime", {}).get("concurrent_filtering", 5)
@@ -261,15 +261,15 @@ def main():
     logger.info("")
     logger.info("[Stage 2] Analyzing papers with Heavy Vision LLM...")
 
-    heavy_llm_config = get_llm_config(config, "heavy")
-    if not heavy_llm_config.get("api_key"):
+    heavy_llm_configs = get_llm_config(config, "heavy")
+    if not heavy_llm_configs[0].get("api_key"):
         logger.error("Heavy LLM API key not configured")
         sys.exit(1)
 
-    heavy_llm = BaseLLMClient(**heavy_llm_config)
+    heavy_llm = ResilientLLMClient(heavy_llm_configs)
 
-    # Get rate limit from config
-    rate_limit = config.get("llm", {}).get("heavy", {}).get("rate_limit", {})
+    # Get rate limit from first provider config
+    rate_limit = heavy_llm_configs[0].get("rate_limit", {})
     requests_per_minute = rate_limit.get("requests_per_minute", 0)
 
     analyzer_agent = AnalyzerAgent(
@@ -338,8 +338,8 @@ def main():
     logger.info("")
     logger.info("[Stage 3] Generating field summaries...")
 
-    summary_llm_config = get_llm_config(config, "summary")
-    summary_llm = BaseLLMClient(**summary_llm_config)
+    summary_llm_configs = get_llm_config(config, "summary")
+    summary_llm = ResilientLLMClient(summary_llm_configs)
     summary_agent = SummaryAgent(summary_llm, config.get("output", {}).get("language", "Chinese"))
 
     # Only generate summaries for keywords with papers

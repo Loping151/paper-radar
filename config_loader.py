@@ -63,7 +63,7 @@ def load_config(config_path: str = "config.yaml") -> dict:
     return config
 
 
-def get_llm_config(config: dict, llm_type: str) -> dict:
+def get_llm_config(config: dict, llm_type: str) -> list[dict]:
     """
     Get LLM configuration for a specific type.
 
@@ -72,17 +72,24 @@ def get_llm_config(config: dict, llm_type: str) -> dict:
         llm_type: "light", "heavy", or "summary"
 
     Returns:
-        LLM configuration dict ready for BaseLLMClient
+        List of LLM configuration dicts for ResilientLLMClient.
+        Backward-compatible: a single dict config is wrapped into a one-element list.
     """
     llm_config = config.get("llm", {}).get(llm_type, {})
 
     # For summary, it may reference light or heavy
     if llm_type == "summary":
-        use = llm_config.get("use", "light")
-        base_config = config.get("llm", {}).get(use, {}).copy()
-        # Override with summary-specific settings
-        base_config["temperature"] = llm_config.get("temperature", base_config.get("temperature", 0.5))
-        base_config["max_tokens"] = llm_config.get("max_tokens", base_config.get("max_tokens", 2000))
-        return base_config
+        use = llm_config.get("use", "light") if isinstance(llm_config, dict) else "light"
+        base_configs = [c.copy() for c in get_llm_config(config, use)]
+        for cfg in base_configs:
+            if isinstance(llm_config, dict):
+                cfg["temperature"] = llm_config.get("temperature", cfg.get("temperature", 0.5))
+                cfg["max_tokens"] = llm_config.get("max_tokens", cfg.get("max_tokens", 2000))
+        return base_configs
 
-    return llm_config
+    # Backward-compatible: dict -> [dict]
+    if isinstance(llm_config, dict):
+        return [llm_config]
+    if isinstance(llm_config, list):
+        return llm_config
+    return [llm_config]
